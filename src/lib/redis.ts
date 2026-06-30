@@ -1,12 +1,23 @@
 import Redis from "ioredis";
 
 declare global {
-  var redis: Redis | undefined;
+  var redisClient: Redis | undefined;
 }
 
-export const redis =
-  global.redis ||
-  new Redis({
+function shouldUseRedis() {
+  return process.env.NEXT_PHASE !== "phase-production-build";
+}
+
+function createRedisClient() {
+  if (!shouldUseRedis()) {
+    return null;
+  }
+
+  if (global.redisClient) {
+    return global.redisClient;
+  }
+
+  const client = new Redis({
     host:
       process.env.REDIS_HOST ||
       "127.0.0.1",
@@ -25,36 +36,161 @@ export const redis =
     },
   });
 
-if (
-  process.env.NODE_ENV !==
-  "production"
-) {
-  global.redis = redis;
+  client.on("connect", () => {
+    console.log(
+      "✅ Redis Connected"
+    );
+  });
+
+  client.on("error", (err) => {
+    console.log(
+      "❌ Redis Error:",
+      err
+    );
+  });
+
+  client.on("close", () => {
+    console.log(
+      "⚠ Redis Connection Closed"
+    );
+  });
+
+  client.on("reconnecting", () => {
+    console.log(
+      "🔄 Redis Reconnecting"
+    );
+  });
+
+  if (
+    process.env.NODE_ENV !==
+    "production"
+  ) {
+    global.redisClient = client;
+  }
+
+  return client;
 }
 
-// EVENTS
+export const redis = {
+  async get(key: string) {
+    const client = createRedisClient();
 
-redis.on("connect", () => {
-  console.log(
-    "✅ Redis Connected"
-  );
-});
+    if (!client) {
+      return null;
+    }
 
-redis.on("error", (err) => {
-  console.log(
-    "❌ Redis Error:",
-    err
-  );
-});
+    try {
+      return await client.get(key);
+    } catch (error) {
+      console.warn(
+        "Redis get failed:",
+        error
+      );
+      return null;
+    }
+  },
 
-redis.on("close", () => {
-  console.log(
-    "⚠ Redis Connection Closed"
-  );
-});
+  async set(
+    key: string,
+    value: string,
+    mode?: "EX" | "PX" | "KEEPTTL",
+    ttl?: number
+  ) {
+    const client = createRedisClient();
 
-redis.on("reconnecting", () => {
-  console.log(
-    "🔄 Redis Reconnecting"
-  );
-});
+    if (!client) {
+      return null;
+    }
+
+    try {
+      if (mode && ttl !== undefined) {
+        return await (client as any).set(
+          key,
+          value,
+          mode,
+          ttl
+        );
+      }
+
+      if (mode) {
+        return await (client as any).set(
+          key,
+          value,
+          mode
+        );
+      }
+
+      return await (client as any).set(
+        key,
+        value
+      );
+    } catch (error) {
+      console.warn(
+        "Redis set failed:",
+        error
+      );
+      return null;
+    }
+  },
+
+  async del(key: string | string[]) {
+    const client = createRedisClient();
+
+    if (!client) {
+      return 0;
+    }
+
+    try {
+      if (Array.isArray(key)) {
+        return await client.del(...key);
+      }
+
+      return await client.del(key);
+    } catch (error) {
+      console.warn(
+        "Redis del failed:",
+        error
+      );
+      return 0;
+    }
+  },
+
+  async incr(key: string) {
+    const client = createRedisClient();
+
+    if (!client) {
+      return 0;
+    }
+
+    try {
+      return await client.incr(key);
+    } catch (error) {
+      console.warn(
+        "Redis incr failed:",
+        error
+      );
+      return 0;
+    }
+  },
+
+  async expire(key: string, seconds: number) {
+    const client = createRedisClient();
+
+    if (!client) {
+      return 0;
+    }
+
+    try {
+      return await client.expire(
+        key,
+        seconds
+      );
+    } catch (error) {
+      console.warn(
+        "Redis expire failed:",
+        error
+      );
+      return 0;
+    }
+  },
+};
