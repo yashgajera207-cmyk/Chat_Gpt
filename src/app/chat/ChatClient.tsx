@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-import { useRouter, useSearchParams, } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Sidebar } from "@/components/Sidebar";
 import { Navbar } from "@/components/Navbar";
@@ -121,127 +121,95 @@ export default function ChatClient({ userEmail }: ChatClientProps) {
     loadChats();
   }, [mounted, router]);
 
+  // =========================
+  // IMPORT SHARED CHAT
+  // =========================
 
-// =========================
-// IMPORT SHARED CHAT
-// =========================
+  useEffect(() => {
+    if (!mounted) return;
 
-useEffect(() => {
+    const shareId = searchParams.get("share");
 
-  if (!mounted) return;
+    if (!shareId) return;
 
-  const shareId =
-    searchParams.get("share");
-
-  if (!shareId) return;
-
-  const importSharedChat =
-    async () => {
-
+    const importSharedChat = async () => {
       try {
-
         // GET SHARED MESSAGES
 
-        const messagesRes =
-          await fetch(
-            `/api/chats/${shareId}/messages`
-          );
+        const messagesRes = await fetch(`/api/chats/${shareId}/messages`);
 
         if (!messagesRes.ok) {
           return;
         }
 
-        const messagesData =
-          await messagesRes.json();
+        const messagesData = await messagesRes.json();
 
         // CREATE NEW CHAT
 
-        const createRes =
-          await fetch("/api/chats", {
-            method: "POST",
+        const createRes = await fetch("/api/chats", {
+          method: "POST",
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
+          headers: {
+            "Content-Type": "application/json",
+          },
 
-            body: JSON.stringify({
-              title:
-                "Shared Conversation",
-            }),
-          });
+          body: JSON.stringify({
+            title: "Shared Conversation",
+          }),
+        });
 
         if (!createRes.ok) {
           return;
         }
 
-        const newChat =
-          await createRes.json();
+        const newChat = await createRes.json();
 
         // COPY MESSAGES
 
-        await fetch(
-          "/api/chats/import",
-          {
-            method: "POST",
+        await fetch("/api/chats/import", {
+          method: "POST",
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
+          headers: {
+            "Content-Type": "application/json",
+          },
 
-            body: JSON.stringify({
-              chatId:
-                newChat.id,
+          body: JSON.stringify({
+            chatId: newChat.id,
 
-              messages:
-                messagesData.messages,
-            }),
-          }
-        );
+            messages: messagesData.messages,
+          }),
+        });
 
         // REFRESH CHATS
 
-        const chatsRes =
-          await fetch("/api/chats");
+        const chatsRes = await fetch("/api/chats");
 
-        const chatsData =
-          await chatsRes.json();
+        const chatsData = await chatsRes.json();
 
-        const formattedChats =
-          chatsData.map((chat: any) => ({
-            ...chat,
+        const formattedChats = chatsData.map((chat: any) => ({
+          ...chat,
 
-            createdAt:
-              new Date(chat.createdAt),
+          createdAt: new Date(chat.createdAt),
 
-            updatedAt:
-              new Date(chat.updatedAt),
-          }));
+          updatedAt: new Date(chat.updatedAt),
+        }));
 
         setChats(formattedChats);
 
         // OPEN NEW CHAT
 
-        setCurrentChatId(
-          newChat.id
-        );
+        setCurrentChatId(newChat.id);
 
         // REMOVE SHARE PARAM
 
         router.replace("/chat");
-
       } catch (error) {
-
         console.log(error);
       }
     };
 
-  importSharedChat();
-
-}, [mounted, searchParams, router]);
-
-
+    importSharedChat();
+  }, [mounted, searchParams, router]);
 
   // =========================
   // LOAD MESSAGES
@@ -320,7 +288,7 @@ useEffect(() => {
       };
 
       setChats((prev) => [formattedChat, ...prev]);
-
+      
       setCurrentChatId(formattedChat.id);
 
       setMessages([]);
@@ -608,7 +576,7 @@ useEffect(() => {
 
   const shareChat = async (chatId: string) => {
     try {
-     const shareUrl = `${window.location.origin}/chat?share=${chatId}`;
+      const shareUrl = `${window.location.origin}/chat?share=${chatId}`;
 
       await navigator.clipboard.writeText(shareUrl);
 
